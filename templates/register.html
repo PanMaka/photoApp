@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - Register</title>
+</head>
+
+<body>
+    <h2>Register for k29photo</h2>
+
+    {% if error %}
+    <p style="color: red;"><b>{{ error }}</b></p>
+    {% endif %}
+
+    <form action="/register" method="POST">
+        <label>First Name:</label><br>
+        <input type="text" name="first_name" required><br><br>
+
+        <label>Last Name:</label><br>
+        <input type="text" name="last_name" required><br><br>
+
+        <label>Email:</label><br>
+        <input type="email" name="email" required><br><br>
+
+        <label>Password:</label><br>
+        <input type="password" name="password" required><br><br>
+
+        <label>Date of Birth (Optional):</label><br>
+        <input type="date" name="dob"><br><br>
+
+        <button type="submit">Register</button>
+    </form>
+</body>
+
+</html>
