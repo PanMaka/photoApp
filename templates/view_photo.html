@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - View Photo</title>
+</head>
+
+<body>
+    <p><a href="/">← Back to Feed</a></p>
+
+    <img src="{{ url_for('serve_photo', photo_id=photo[0]) }}" style="max-width: 600px;">
+
+    <h3>Uploaded by: {{ photo[2] }} {{ photo[3] }} (Album: {{ photo[4] }})</h3>
+    {% if photo[1] %}
+    <p><i>"{{ photo[1] }}"</i></p>
+    {% endif %}
+
+    <hr>
+
+    <p><b>Likes:</b> {{ likes }}</p>
+
+    {% if 'user_id' in session %}
+    {% if has_liked %}
+    <p style="color: green;">✓ You liked this photo.</p>
+    {% else %}
+    <form action="{{ url_for('like_photo', photo_id=photo[0]) }}" method="POST">
+        <button type="submit">Like</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <p><a href="/login">Log in</a> to like this photo.</p>
+    {% endif %}
+
+</body>
+
+</html>
