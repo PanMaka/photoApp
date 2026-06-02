@@ -134,50 +134,78 @@ def login():
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
-    # Security check to ensure the user is logged in
+    # Security check
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    if request.method == 'POST':
-        # Pull the form data from upload
-        albumName = request.form['album_name']
-        caption = request.form.get('caption') or ''
-        
-        # Get the uploaded file from the request
-        photoFile = request.files['photo_file']
+    # Get a database connection and cursor
+    conn = get_db_connection()
+    cur = conn.cursor()
 
-        # Read the raw binary data of the image
+    if request.method == 'POST':
+        # Grab data from BOTH the dropdown and the text input
+        existingAlbumId = request.form.get('existing_album')
+        newAlbumName = request.form.get('new_album_name')
+        
+        caption = request.form.get('caption') or ''
+        photoFile = request.files['photo_file']
         photoData = photoFile.read()
 
-        # Get a database connection and cursor
-        conn = get_db_connection()
-        cur = conn.cursor()
-
         try:
-            # Insert the new album and get its ID
-            cur.execute(
-                """
-                INSERT INTO Albums (name, user_id)
-                VALUES (%s, %s)
-                RETURNING album_id
-                """,
-                (albumName, session['user_id'])
-            )
-            newAlbumId = cur.fetchone()[0]
+            # LOGIC: Decide which Album ID to use
+            if newAlbumName:
+                # They typed a new name, so create a new album
+                cur.execute(
+                    "INSERT INTO Albums (name, user_id) VALUES (%s, %s) RETURNING album_id",
+                    (newAlbumName, session['user_id'])
+                )
+                finalAlbumId = cur.fetchone()[0]
+                
+            elif existingAlbumId:
+                # They selected an existing album from the dropdown
+                finalAlbumId = existingAlbumId
+                
+            else:
+                return "Error: You must select an existing album OR create a new one!"
 
-            # Insert the photo using the binary data and the new album ID
+            # Insert the photo and IMMEDIATELY grab its new photo_id
             cur.execute(
                 """
-                INSERT INTO Photos (caption, data, album_id)
-                VALUES (%s, %s, %s)
+                INSERT INTO Photos (caption, data, album_id) 
+                VALUES (%s, %s, %s) 
+                RETURNING photo_id
                 """,
-                (caption, psycopg2.Binary(photoData), newAlbumId)
+                (caption, psycopg2.Binary(photoData), finalAlbumId)
             )
+            newPhotoId = cur.fetchone()[0]
             
-            # Commit the changes to the database
+            # Process the Tags
+            rawTags = request.form.get('tags', '')
+            if rawTags:
+                # Split the string by spaces into a list of words
+                tagList = rawTags.split()
+                
+                for tagWord in tagList:
+                    # Enforce lowercase rule
+                    cleanTag = tagWord.lower()
+                    
+                    # Check if the tag already exists in the database
+                    cur.execute("SELECT tag_id FROM Tags WHERE word = %s", (cleanTag,))
+                    tagRow = cur.fetchone()
+                    
+                    if not tagRow:
+                        # If it's a brand new tag, insert it and grab the new ID
+                        cur.execute("INSERT INTO Tags (word) VALUES (%s) RETURNING tag_id", (cleanTag,))
+                        tagId = cur.fetchone()[0]
+                    else:
+                        # If it exists, just use the existing ID
+                        tagId = tagRow[0]
+
+                    # Link the tag to the specific photo in the bridge table
+                    cur.execute("INSERT INTO Photo_Tags (photo_id, tag_id) VALUES (%s, %s)", (newPhotoId, tagId))
+
+            # Commit everything (Album, Photo, and Tags) in one go
             conn.commit()
-            
-            # Redirect to the home page feed on success
             return redirect(url_for('index'))
 
         # Handle any insertion errors
@@ -190,8 +218,17 @@ def upload():
             cur.close()
             conn.close()
 
-    # Show the upload form for GET requests
-    return render_template('upload.html')
+    # --- FOR GET REQUESTS ---
+    # Fetch the logged-in user's existing albums to populate the dropdown
+    cur.execute("SELECT album_id, name FROM Albums WHERE user_id = %s", (session['user_id'],))
+    userAlbums = cur.fetchall()
+    
+    # Close connections
+    cur.close()
+    conn.close()
+
+    # Pass the albums to the template
+    return render_template('upload.html', albums=userAlbums)
 
 @app.route('/photo/<int:photo_id>')
 def serve_photo(photo_id):
@@ -220,7 +257,6 @@ def view_photo(photo_id):
     cur = conn.cursor()
 
     # Fetch the specific photo and its uploader's details
-    # FIX: Changed p.user_id to u.user_id
     cur.execute("""
         SELECT p.photo_id, p.caption, u.first_name, u.last_name, a.name, u.user_id
         FROM Photos p
@@ -241,12 +277,22 @@ def view_photo(photo_id):
         if cur.fetchone():
             hasLiked = True
 
+    # ADDITION: Fetch all comments for this photo
+    cur.execute("""
+        SELECT c.text, u.first_name, u.last_name 
+        FROM Comments c
+        JOIN Users u ON c.user_id = u.user_id
+        WHERE c.photo_id = %s
+        ORDER BY c.comment_id ASC
+    """, (photo_id,))
+    comments = cur.fetchall()
+
     # Close connections
     cur.close()
     conn.close()
 
-    # Pass everything to the specific photo template
-    return render_template('view_photo.html', photo=photoDetails, likes=likeCount, has_liked=hasLiked, session=session)
+    # Pass the new 'comments' variable to the template
+    return render_template('view_photo.html', photo=photoDetails, likes=likeCount, has_liked=hasLiked, comments=comments, session=session)
 
 @app.route('/like/<int:photo_id>', methods=['POST'])
 def like_photo(photo_id):
@@ -282,6 +328,49 @@ def like_photo(photo_id):
         conn.close()
 
     # Redirect the user right back to the same photo they just liked
+    return redirect(url_for('view_photo', photo_id=photo_id))
+
+@app.route('/comment/<int:photo_id>', methods=['POST'])
+def add_comment(photo_id):
+    # Security check to ensure the user is logged in
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    commentText = request.form['comment_text']
+    currentUserId = session['user_id']
+
+    # Get a database connection and cursor
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Security check: Ensure the user is not commenting on their own photo
+        cur.execute("SELECT album_id FROM Photos WHERE photo_id = %s", (photo_id,))
+        albumId = cur.fetchone()[0]
+        
+        cur.execute("SELECT user_id FROM Albums WHERE album_id = %s", (albumId,))
+        ownerId = cur.fetchone()[0]
+
+        if currentUserId == ownerId:
+            # Silently reject self-comments
+            return redirect(url_for('view_photo', photo_id=photo_id))
+
+        # Insert the comment into the database
+        cur.execute(
+            "INSERT INTO Comments (text, user_id, photo_id) VALUES (%s, %s, %s)",
+            (commentText, currentUserId, photo_id)
+        )
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding comment: {e}")
+
+    finally:
+        cur.close()
+        conn.close()
+
+    # Redirect back to the photo page to see the new comment
     return redirect(url_for('view_photo', photo_id=photo_id))
 
 @app.route('/logout')

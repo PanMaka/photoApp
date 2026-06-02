@@ -10,16 +10,37 @@
     <h2>Create an Album & Upload a Photo</h2>
 
     <form action="/upload" method="POST" enctype="multipart/form-data">
-        <label>New Album Name:</label><br>
-        <input type="text" name="album_name" required><br><br>
-
+    
+        <h3>1. Choose an Album</h3>
+    
+        <label>Add to an Existing Album:</label><br>
+        <select name="existing_album">
+            <option value="">-- Select an Album --</option>
+            {% for album in albums %}
+            <option value="{{ album[0] }}">{{ album[1] }}</option>
+            {% endfor %}
+        </select>
+    
+        <br><br><b>OR</b><br><br>
+    
+        <label>Create a New Album:</label><br>
+        <input type="text" name="new_album_name" placeholder="New Album Name"><br><br>
+    
+        <hr>
+    
+        <h3>2. Photo Details</h3>
         <label>Photo Caption:</label><br>
         <input type="text" name="caption"><br><br>
-
+    
         <label>Select Photo:</label><br>
         <input type="file" name="photo_file" accept="image/*" required><br><br>
 
-        <button type="submit">Upload</button>
+        <label>Tags (separate with spaces):</label><br>
+        <input type="text" name="tags" placeholder="e.g. summer beach friends"><br><br>
+        
+        <button type="submit">Upload Photo</button>
+    
+        <button type="submit">Upload Photo</button>
     </form>
     <br>
     <a href="/">Back to Home</a>

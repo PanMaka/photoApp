@@ -32,6 +32,31 @@
     <p><a href="/login">Log in</a> to like this photo.</p>
     {% endif %}
 
+    <h3>Comments</h3>
+    
+    <ul style="list-style-type: none; padding: 0;">
+        {% for comment in comments %}
+        <li style="margin-bottom: 10px; padding: 10px; background-color: #f9f9f9; border: 1px solid #ddd;">
+            <b>{{ comment[1] }} {{ comment[2] }}:</b> {{ comment[0] }}
+        </li>
+        {% else %}
+        <p>No comments yet. Be the first to comment!</p>
+        {% endfor %}
+    </ul>
+    
+    {% if 'user_id' in session %}
+    {% if session['user_id'] != photo[5] %}
+    <form action="{{ url_for('add_comment', photo_id=photo[0]) }}" method="POST">
+        <textarea name="comment_text" rows="3" cols="50" required placeholder="Leave a comment..."></textarea><br>
+        <button type="submit" style="margin-top: 5px;">Post Comment</button>
+    </form>
+    {% else %}
+    <p style="color: gray;"><i>You cannot comment on your own photo.</i></p>
+    {% endif %}
+    {% else %}
+    <p><a href="/login">Log in</a> to leave a comment.</p>
+    {% endif %}
+
 </body>
 
 </html>
