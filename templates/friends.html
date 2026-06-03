@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - Friends</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .friend-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            width: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <p><a href="/">← Back to Feed</a></p>
+    <h2>Friends Dashboard</h2>
+
+    <h3>Find New Friends</h3>
+    <form action="/friends" method="POST">
+        <input type="text" name="search_email" placeholder="Search by email..." required>
+        <button type="submit">Search</button>
+    </form>
+
+    {% if results %}
+    <h4>Search Results:</h4>
+    {% for user in results %}
+    <div class="friend-box">
+        <b>{{ user[1] }} {{ user[2] }}</b><br>
+        <i>{{ user[3] }}</i><br>
+
+        <form action="{{ url_for('add_friend', friend_id=user[0]) }}" method="POST" style="margin-top: 5px;">
+            <button type="submit">Add Friend</button>
+        </form>
+    </div>
+    {% endfor %}
+    {% elif request.method == 'POST' %}
+    <p><i>No users found or you are already friends!</i></p>
+    {% endif %}
+
+    <hr>
+
+    <h3>Your Friends</h3>
+    <ul>
+        {% for friend in friends %}
+        <li><b>{{ friend[0] }} {{ friend[1] }}</b> ({{ friend[2] }})</li>
+        {% else %}
+        <p>You haven't added any friends yet.</p>
+        {% endfor %}
+    </ul>
+
+</body>
+
+</html>

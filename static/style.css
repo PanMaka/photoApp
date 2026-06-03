@@ -1,0 +1,110 @@
+/* Centers the entire app and makes the font readable */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 18px;
+    line-height: 1.6;
+    color: #333;
+    max-width: 1200px;
+    /* WIDENED for the 3-column layout */
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f8f9fa;
+}
+
+/* Modernize the links */
+a {
+    color: #0056b3;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Clean up the input boxes and dropdowns */
+input[type="text"],
+input[type="password"],
+select,
+textarea {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    width: 100%;
+    max-width: 400px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+}
+
+/* Make the buttons pop */
+button {
+    background-color: #0056b3;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #004494;
+}
+
+/* Add a subtle shadow to uploaded images */
+img {
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 15px;
+}
+
+/* Clean up lists (like the Friends and Comments lists) */
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+li {
+    background: white;
+    padding: 10px 15px;
+    margin-bottom: 8px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    /* Forces exactly 3 equal columns */
+    gap: 25px;
+    /* The spacing between the photos */
+    margin-top: 20px;
+}
+
+.photo-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+    /* Adds a tiny animation */
+}
+
+.photo-card:hover {
+    transform: translateY(-5px);
+    /* Makes the card "lift" when hovered */
+}
+
+.photo-card img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    box-shadow: none;
+    /* Removing the old shadow so it doesn't double up */
+}

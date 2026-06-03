@@ -12,10 +12,10 @@ CREATE TABLE Users (
 -- Friends Table (Many-to-Many Relationship)
 -- Links users to other users
 CREATE TABLE Friends (
-    user_id_1 INT REFERENCES Users(user_id) ON DELETE CASCADE,
-    user_id_2 INT REFERENCES Users(user_id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id_1, user_id_2),
-    CHECK (user_id_1 != user_id_2) -- A user cannot be friends with themselves
+    user_id INT REFERENCES Users(user_id) ON DELETE CASCADE,
+    friend_id INT REFERENCES Users(user_id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, friend_id),
+    CHECK (user_id != friend_id) -- A user cannot be friends with themselves
 );
 
 -- Albums Table (One-to-Many Relationship).

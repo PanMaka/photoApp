@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>k29photo - Home</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         .photo-card {
             border: 1px solid #ccc;
@@ -31,6 +32,7 @@
         {% if 'user_id' in session %}
         <p>Welcome back, <b>{{ session['first_name'] }}</b>!
             <a href="/upload">Upload a Photo</a> |
+            <a href="/friends">Manage Friends</a> |
             <a href="/logout">Logout</a>
         </p>
         {% else %}
@@ -38,22 +40,26 @@
         {% endif %}
     </div>
 
-    <div>
+    <div class="photo-grid">
+
         {% for photo in photos %}
         <div class="photo-card">
+
             <a href="/view/{{ photo[0] }}">
                 <img src="{{ url_for('serve_photo', photo_id=photo[0]) }}" alt="User Upload">
             </a>
-            
+
             <p><b>{{ photo[3] }} {{ photo[4] }}</b> (Album: {{ photo[2] }})</p>
 
             {% if photo[1] %}
             <p><i>"{{ photo[1] }}"</i></p>
             {% endif %}
+
         </div>
         {% else %}
-        <p>No photos have been uploaded yet.</p>
+        <p>No photos uploaded yet!</p>
         {% endfor %}
+
     </div>
 </body>
 

@@ -373,6 +373,85 @@ def add_comment(photo_id):
     # Redirect back to the photo page to see the new comment
     return redirect(url_for('view_photo', photo_id=photo_id))
 
+
+@app.route('/friends', methods=['GET', 'POST'])
+def friends():
+    # Security check
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    currentUserId = session['user_id']
+    searchResults = []
+    
+    # Get a database connection and cursor
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # If they searched for someone
+    if request.method == 'POST':
+        searchEmail = request.form.get('search_email')
+        
+        # Search for users by exact or partial email. 
+        # We exclude the current user AND people they are already friends with!
+        cur.execute("""
+            SELECT user_id, first_name, last_name, email 
+            FROM Users 
+            WHERE email ILIKE %s 
+              AND user_id != %s 
+              AND user_id NOT IN (
+                  SELECT friend_id FROM Friends WHERE user_id = %s
+              )
+        """, (f"%{searchEmail}%", currentUserId, currentUserId))
+        searchResults = cur.fetchall()
+
+    # Fetch the user's current friends list to display on the page
+    # (Assuming your table is named Friends with columns user_id and friend_id)
+    cur.execute("""
+        SELECT u.first_name, u.last_name, u.email 
+        FROM Users u
+        JOIN Friends f ON u.user_id = f.friend_id
+        WHERE f.user_id = %s
+    """, (currentUserId,))
+    currentFriends = cur.fetchall()
+
+    # Close connections
+    cur.close()
+    conn.close()
+
+    return render_template('friends.html', results=searchResults, friends=currentFriends)
+
+
+@app.route('/add_friend/<int:friend_id>', methods=['POST'])
+def add_friend(friend_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Insert the friendship into the database
+        cur.execute(
+            "INSERT INTO Friends (user_id, friend_id) VALUES (%s, %s)",
+            (session['user_id'], friend_id)
+        )
+        conn.commit()
+    
+    except psycopg2.errors.UniqueViolation:
+        # Ignore if they somehow clicked add twice
+        conn.rollback()
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding friend: {e}")
+
+    finally:
+        cur.close()
+        conn.close()
+
+    # Redirect right back to the friends dashboard
+    return redirect(url_for('friends'))
+
 @app.route('/logout')
 def logout():
     # Clear session and redirect to index
