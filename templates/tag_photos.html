@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - #{{ tag_word }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="nav-bar">
+        <h1>Photos tagged with #{{ tag_word }}</h1>
+        <p><a href="/popular_tags">Back to Popular Tags</a></p>
+    </div>
+
+    <div class="photo-grid">
+        {% for photo in photos %}
+        <div class="photo-card">
+            <a href="/view/{{ photo[0] }}">
+                <img src="{{ url_for('serve_photo', photo_id=photo[0]) }}" alt="Tagged Upload">
+            </a>
+            <p><b>{{ photo[3] }} {{ photo[4] }}</b> (Album: {{ photo[2] }})</p>
+            {% if photo[1] %}
+            <p><i>"{{ photo[1] }}"</i></p>
+            {% endif %}
+        </div>
+        {% else %}
+        <p style="grid-column: 1 / -1; text-align: center;">No photos found for this tag.</p>
+        {% endfor %}
+    </div>
+</body>
+
+</html>

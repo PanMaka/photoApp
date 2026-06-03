@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - Top 10 Users</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* A little extra CSS specifically for this table to make it pop */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #0056b3;
+            color: white;
+        }
+
+        /* Highlight the #1 user in gold! */
+        tr:nth-child(1) td {
+            background-color: #fffacd;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav-bar" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #eee;">
+        <h1>Top 10 Contributors</h1>
+        <p><a href="/">← Back to Feed</a></p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>User</th>
+                <th>Photos Uploaded</th>
+                <th>Comments Left</th>
+                <th>Total Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>#{{ loop.index }}</td>
+                <td>{{ user[0] }} {{ user[1] }}</td>
+                <td>{{ user[2] }}</td>
+                <td>{{ user[3] }}</td>
+                <td><b>{{ user[4] }}</b></td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5">No active users yet!</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+
+</html>

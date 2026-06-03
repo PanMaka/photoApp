@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - Friend Suggestions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #0056b3;
+            color: white;
+        }
+
+        .add-btn {
+            background-color: #28a745;
+            padding: 5px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .add-btn:hover {
+            background-color: #218838;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav-bar" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #eee;">
+        <h1>🤝 Suggested Friends</h1>
+        <p><a href="/friends">← Back to Manage Friends</a></p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Mutual Friends</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for person in suggestions %}
+            <tr>
+                <td><b>{{ person[1] }} {{ person[2] }}</b></td>
+                <td>{{ person[3] }} mutual connection(s)</td>
+                <td>
+                    <form action="/add_friend/{{ person[0] }}" method="POST" style="margin: 0;">
+                        <button type="submit" class="add-btn">Add Friend</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align: center; color: #666;">
+                    No suggestions right now. Try adding more friends to expand your network!
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+
+</html>

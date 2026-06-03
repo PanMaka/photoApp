@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - Search</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="nav-bar">
+        <h1>Search Photos by Tag</h1>
+        <p><a href="/">← Back to Feed</a></p>
+    </div>
+
+    <form action="/search_tags" method="POST" style="text-align: center; margin-bottom: 30px;">
+        <input type="text" name="query" placeholder="e.g., summer friends" value="{{ search_query }}" required
+            style="width: 50%; max-width: 500px;">
+        <button type="submit">Search</button>
+    </form>
+
+    {% if search_query %}
+    <h3>Results for "{{ search_query }}"</h3>
+
+    <div class="photo-grid">
+        {% for photo in photos %}
+        <div class="photo-card">
+            <a href="/view/{{ photo[0] }}">
+                <img src="{{ url_for('serve_photo', photo_id=photo[0]) }}" alt="User Upload">
+            </a>
+            <p><b>{{ photo[3] }} {{ photo[4] }}</b> (Album: {{ photo[2] }})</p>
+            {% if photo[1] %}
+            <p><i>"{{ photo[1] }}"</i></p>
+            {% endif %}
+        </div>
+        {% else %}
+        <p style="grid-column: 1 / -1; text-align: center;">No photos found containing ALL of those tags.</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</body>
+
+</html>

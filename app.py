@@ -430,27 +430,284 @@ def add_friend(friend_id):
     cur = conn.cursor()
 
     try:
-        # Insert the friendship into the database
         cur.execute(
             "INSERT INTO Friends (user_id, friend_id) VALUES (%s, %s)",
             (session['user_id'], friend_id)
         )
         conn.commit()
-    
-    except psycopg2.errors.UniqueViolation:
-        # Ignore if they somehow clicked add twice
-        conn.rollback()
-        
     except Exception as e:
         conn.rollback()
         print(f"Error adding friend: {e}")
-
     finally:
         cur.close()
         conn.close()
 
-    # Redirect right back to the friends dashboard
     return redirect(url_for('friends'))
+@app.route('/friend_recommendations')
+def friend_recommendations():
+    # Security check: Only logged-in users get recommendations
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # The Friends-of-Friends SQL Query
+    cur.execute("""
+        -- Step 1: Gather a list of everyone I am currently friends with
+        WITH MyFriends AS (
+            SELECT friend_id 
+            FROM Friends 
+            WHERE user_id = %s
+        ),
+        
+        -- Step 2: Find all the friends of my friends
+        FriendsOfFriends AS (
+            SELECT f.friend_id AS suggested_id, f.user_id AS mutual_friend_id
+            FROM Friends f
+            JOIN MyFriends mf ON f.user_id = mf.friend_id
+        )
+        
+        -- Step 3: Filter, Count, and Rank!
+        SELECT 
+            u.user_id, 
+            u.first_name, 
+            u.last_name, 
+            COUNT(fof.mutual_friend_id) AS mutual_friends_count
+        FROM FriendsOfFriends fof
+        JOIN Users u ON fof.suggested_id = u.user_id
+        -- Rule 1: Do not recommend me to myself
+        WHERE fof.suggested_id != %s 
+          -- Rule 2: Do not recommend people I am already friends with
+          AND fof.suggested_id NOT IN (SELECT friend_id FROM MyFriends)
+        GROUP BY u.user_id, u.first_name, u.last_name
+        ORDER BY mutual_friends_count DESC;
+    """, (user_id, user_id))
+
+    suggestions = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('friend_recommendations.html', suggestions=suggestions)
+
+@app.route('/leaderboard')
+def leaderboard():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # The Heavy SQL: Calculate Contribution Score using isolated Subqueries
+    cur.execute("""
+        SELECT 
+            u.first_name, 
+            u.last_name,
+            COALESCE(photo_sq.photo_count, 0) AS total_photos,
+            COALESCE(comment_sq.comment_count, 0) AS total_comments,
+            (COALESCE(photo_sq.photo_count, 0) + COALESCE(comment_sq.comment_count, 0)) AS contribution_score
+        FROM Users u
+        -- Subquery 1: Count Photos (We have to route through Albums!)
+        LEFT JOIN (
+            SELECT a.user_id, COUNT(p.photo_id) AS photo_count
+            FROM Albums a
+            JOIN Photos p ON a.album_id = p.album_id
+            GROUP BY a.user_id
+        ) photo_sq ON u.user_id = photo_sq.user_id
+        -- Subquery 2: Count Comments
+        LEFT JOIN (
+            SELECT user_id, COUNT(comment_id) AS comment_count
+            FROM Comments
+            GROUP BY user_id
+        ) comment_sq ON u.user_id = comment_sq.user_id
+        -- Sort by the highest score, limit to Top 10
+        ORDER BY contribution_score DESC
+        LIMIT 10;
+    """)
+    
+    top_users = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('leaderboard.html', users=top_users)
+
+@app.route('/search_tags', methods=['GET', 'POST'])
+def search_tags():
+    photos = []
+    search_query = ""
+
+    if request.method == 'POST':
+        search_query = request.form.get('query', '').strip()
+        
+        if search_query:
+            # 1. Split the string into a list of lowercase words
+            tag_list = [tag.lower() for tag in search_query.split()]
+            num_tags = len(tag_list)
+
+            conn = get_db_connection()
+            cur = conn.cursor()
+
+            # We use tuple(tag_list) so psycopg2 safely injects it into the IN clause
+            cur.execute("""
+                SELECT p.photo_id, p.caption, a.name AS album_name, u.first_name, u.last_name
+                FROM Photos p
+                JOIN Albums a ON p.album_id = a.album_id
+                JOIN Users u ON a.user_id = u.user_id
+                JOIN Photo_Tags pt ON p.photo_id = pt.photo_id
+                JOIN Tags t ON pt.tag_id = t.tag_id
+                WHERE t.tag_word IN %s
+                GROUP BY p.photo_id, a.name, u.first_name, u.last_name
+                HAVING COUNT(DISTINCT t.tag_word) = %s
+                ORDER BY p.photo_id DESC
+            """, (tuple(tag_list), num_tags))
+            
+            photos = cur.fetchall()
+            
+            cur.close()
+            conn.close()
+
+    return render_template('search_tags.html', photos=photos, search_query=search_query)
+
+@app.route('/photo_recommendations')
+def photo_recommendations():
+    # Security check: Only logged-in users get recommendations
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # The Final Boss SQL Query (Corrected for tag_id)
+    cur.execute("""
+        -- Step 1: Find this user's top 5 most used tags by ID
+        WITH TopUserTags AS (
+            SELECT pt.tag_id
+            FROM Albums a
+            JOIN Photos p ON a.album_id = p.album_id
+            JOIN Photo_Tags pt ON p.photo_id = pt.photo_id
+            WHERE a.user_id = %s
+            GROUP BY pt.tag_id
+            ORDER BY COUNT(pt.tag_id) DESC
+            LIMIT 5
+        ),
+        
+        -- Step 2: Count the TOTAL tags on every photo in the database (for the tie-breaker)
+        PhotoTotalTags AS (
+            SELECT photo_id, COUNT(tag_id) AS total_tags
+            FROM Photo_Tags
+            GROUP BY photo_id
+        )
+        
+        -- Step 3: Match, Filter, and Rank!
+        SELECT 
+            p.photo_id, 
+            p.caption, 
+            u.first_name, 
+            u.last_name, 
+            COUNT(pt.tag_id) AS match_count,
+            ptt.total_tags
+        FROM Photos p
+        JOIN Albums a ON p.album_id = a.album_id
+        JOIN Users u ON a.user_id = u.user_id
+        JOIN Photo_Tags pt ON p.photo_id = pt.photo_id
+        JOIN PhotoTotalTags ptt ON p.photo_id = ptt.photo_id
+        -- Only look at photos that have our top 5 tags
+        WHERE pt.tag_id IN (SELECT tag_id FROM TopUserTags)
+          -- DO NOT recommend the user's own photos to themselves!
+          AND a.user_id != %s 
+        GROUP BY p.photo_id, p.caption, u.first_name, u.last_name, ptt.total_tags
+        ORDER BY 
+            match_count DESC,   -- Primary Sort: Most matching tags wins
+            ptt.total_tags ASC  -- Tie-Breaker: Fewest total tags wins (More concise)
+        LIMIT 10;
+    """, (user_id, user_id))
+
+    recommended_photos = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('photo_recommendations.html', photos=recommended_photos)
+
+@app.route('/search_comments', methods=['GET', 'POST'])
+def search_comments():
+    results = []
+    search_query = ""
+
+    if request.method == 'POST':
+        search_query = request.form.get('query', '').strip()
+        
+        if search_query:
+            conn = get_db_connection()
+            cur = conn.cursor()
+
+            # Aggregates counts and an array of unique photo IDs
+            cur.execute("""
+                SELECT 
+                    u.first_name, 
+                    u.last_name, 
+                    COUNT(c.comment_id) AS match_count,
+                    ARRAY_AGG(DISTINCT c.photo_id) AS photo_ids
+                FROM Comments c
+                JOIN Users u ON c.user_id = u.user_id
+                WHERE c.text = %s
+                GROUP BY u.user_id, u.first_name, u.last_name
+                ORDER BY match_count DESC;
+            """, (search_query,))
+            
+            results = cur.fetchall()
+            
+            cur.close()
+            conn.close()
+
+    return render_template('search_comments.html', results=results, search_query=search_query)
+
+@app.route('/popular_tags')
+def popular_tags():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Calculate tag popularity by counting associated photo IDs
+    cur.execute("""
+        SELECT t.tag_word, COUNT(pt.photo_id) AS tag_count
+        FROM Tags t
+        JOIN Photo_Tags pt ON t.tag_id = pt.tag_id
+        GROUP BY t.tag_word
+        ORDER BY tag_count DESC;
+    """)
+    
+    tags = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('popular_tags.html', tags=tags)
+
+
+@app.route('/tag/<string:tag_word>')
+def view_tag(tag_word):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Retrieve all photos that have this specific tag
+    cur.execute("""
+        SELECT p.photo_id, p.caption, a.name AS album_name, u.first_name, u.last_name
+        FROM Photos p
+        JOIN Albums a ON p.album_id = a.album_id
+        JOIN Users u ON a.user_id = u.user_id
+        JOIN Photo_Tags pt ON p.photo_id = pt.photo_id
+        JOIN Tags t ON pt.tag_id = t.tag_id
+        WHERE t.tag_word = %s
+        ORDER BY p.photo_id DESC;
+    """, (tag_word,))
+    
+    photos = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('tag_photos.html', photos=photos, tag_word=tag_word)
 
 @app.route('/logout')
 def logout():

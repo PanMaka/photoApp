@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - Search Comments</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #0056b3;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav-bar">
+        <h1>Search Comments</h1>
+        <p><a href="/">← Back to Feed</a></p>
+    </div>
+
+    <form action="/search_comments" method="POST" style="text-align: center; margin-bottom: 30px;">
+        <input type="text" name="query" placeholder="e.g., Looks amazing!" value="{{ search_query }}" required
+            style="width: 50%; max-width: 500px;">
+        <button type="submit">Search</button>
+    </form>
+
+    {% if search_query %}
+    <h3>Users who commented exactly: "{{ search_query }}"</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Number of Matching Comments</th>
+                <th>Where they said it</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in results %}
+            <tr>
+                <td><b>{{ row[0] }} {{ row[1] }}</b></td>
+                <td>{{ row[2] }} times</td>
+                <td>
+                    {% for pid in row[3] %}
+                    <a href="/view/{{ pid }}"
+                        style="margin-right: 10px; text-decoration: none; background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 14px;">
+                        View Photo
+                    </a>
+                    {% endfor %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align: center;">No users have posted that exact comment.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+</body>
+
+</html>

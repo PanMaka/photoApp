@@ -30,9 +30,14 @@
     <div class="nav-bar">
         <h1>k29photo Feed</h1>
         {% if 'user_id' in session %}
-        <p>Welcome back, <b>{{ session['first_name'] }}</b>!
+        <p>Welcome back, <b>{{ session['first_name'] }}</b>, what would you like to do?
             <a href="/upload">Upload a Photo</a> |
             <a href="/friends">Manage Friends</a> |
+            <a href="/leaderboard">Leaderboard</a> |
+            <a href="/search_tags">Search Tags</a> |
+            <a href="/photo_recommendations">For You</a> |
+            <a href="/search_comments">Search Comments</a> |
+            <a href="/popular_tags">Popular Tags</a> |
             <a href="/logout">Logout</a>
         </p>
         {% else %}
