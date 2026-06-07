@@ -32,6 +32,7 @@
         {% if 'user_id' in session %}
         <p>Welcome back, <b>{{ session['first_name'] }}</b>, what would you like to do?
             <a href="/upload">Upload a Photo</a> |
+            <a href="/albums">Manage Albums</a> |
             <a href="/friends">Manage Friends</a> |
             <a href="/leaderboard">Leaderboard</a> |
             <a href="/search_tags">Search Tags</a> |
@@ -45,6 +46,22 @@
         {% endif %}
     </div>
 
+    {% if 'user_id' in session %}
+    <div style="text-align: center; margin-bottom: 30px;">
+        {% if view_mode == 'mine' %}
+        <a href="/?view=all"
+            style="padding: 10px 20px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            View All Photos
+        </a>
+        {% else %}
+        <a href="/?view=mine"
+            style="padding: 10px 20px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            View My Photos
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <div class="photo-grid">
 
         {% for photo in photos %}
@@ -53,6 +70,16 @@
             <a href="/view/{{ photo[0] }}">
                 <img src="{{ url_for('serve_photo', photo_id=photo[0]) }}" alt="User Upload">
             </a>
+
+            {% if 'user_id' in session and photo[5] == session['user_id'] %}
+            <form action="/delete_photo/{{ photo[0] }}" method="POST" style="margin-top: 15px;"
+                onsubmit="return confirm('Are you sure you want to permanently delete this photo?');">
+                <button type="submit"
+                    style="background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                    Delete Photo
+                </button>
+            </form>
+            {% endif %}
 
             <p><b>{{ photo[3] }} {{ photo[4] }}</b> (Album: {{ photo[2] }})</p>
 

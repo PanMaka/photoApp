@@ -6,7 +6,7 @@ DUMMY_IMAGE = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\x
 
 def fill_database():
     print("Connecting to database...")
-    conn = psycopg2.connect(database="k29photo_db")
+    conn = psycopg2.connect(database="k29photo")
     cur = conn.cursor()
 
     try:

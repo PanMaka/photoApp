@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, Response
+from flask import Flask, render_template, request, redirect, url_for, session, Response, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import psycopg2
 
@@ -10,31 +10,52 @@ app.secret_key = 'k29photo_cookies_key'
 
 # Getting a new database connection under my username
 def get_db_connection():
-    conn = psycopg2.connect(database="k29photo_db")
+    conn = psycopg2.connect(database="k29photo")
     return conn
 
 @app.route('/')
 def index():
-    # Get a database connection and cursor
     conn = get_db_connection()
     cur = conn.cursor()
     
-    # Fetch all photos along with their album name and uploader details
-    cur.execute("""
-        SELECT p.photo_id, p.caption, a.name AS album_name, u.first_name, u.last_name
-        FROM Photos p
-        JOIN Albums a ON p.album_id = a.album_id
-        JOIN Users u ON a.user_id = u.user_id
-        ORDER BY p.photo_id DESC
-    """)
+    # Check the URL for the parameter
+    view_mode = request.args.get('view', 'all')
+
+    # If the user clicked "View My Photos" and is logged in
+    if view_mode == 'mine' and 'user_id' in session:
+        cur.execute("""
+            SELECT p.photo_id, p.caption, a.name AS album_name, u.first_name, u.last_name, a.user_id
+            FROM Photos p
+            JOIN Albums a ON p.album_id = a.album_id
+            JOIN Users u ON a.user_id = u.user_id
+            WHERE a.user_id = %s
+            ORDER BY p.photo_id DESC
+        """, (session['user_id'],))
+    else:
+        # E
+        cur.execute("""
+            SELECT p.photo_id, p.caption, a.name AS album_name, u.first_name, u.last_name, a.user_id
+            FROM Photos p
+            JOIN Albums a ON p.album_id = a.album_id
+            JOIN Users u ON a.user_id = u.user_id
+            ORDER BY p.photo_id DESC
+        """)
+        
     photos = cur.fetchall()
     
-    # Close connections
     cur.close()
     conn.close()
 
-    # Pass the photos and session data to the index template
-    return render_template('index.html', photos=photos, session=session)
+    # Pass view_mode to the template so it can highlight the correct button
+    return render_template('index.html', photos=photos, session=session, view_mode=view_mode)
+
+
+
+
+
+
+
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -132,6 +153,15 @@ def login():
     # For the GET request, just show the login form
     return render_template('login.html')
 
+
+
+
+
+
+
+
+
+
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
     # Security check
@@ -143,7 +173,8 @@ def upload():
     cur = conn.cursor()
 
     if request.method == 'POST':
-        # Grab data from BOTH the dropdown and the text input
+
+        # Grab data from the dropdown and the text input
         existingAlbumId = request.form.get('existing_album')
         newAlbumName = request.form.get('new_album_name')
         
@@ -152,7 +183,7 @@ def upload():
         photoData = photoFile.read()
 
         try:
-            # LOGIC: Decide which Album ID to use
+            # Decide which Album ID to use
             if newAlbumName:
                 # They typed a new name, so create a new album
                 cur.execute(
@@ -166,9 +197,9 @@ def upload():
                 finalAlbumId = existingAlbumId
                 
             else:
-                return "Error: You must select an existing album OR create a new one!"
+                return "Error: You must select an existing album OR create a new one"
 
-            # Insert the photo and IMMEDIATELY grab its new photo_id
+            # Insert the photo and grab the new photo_id
             cur.execute(
                 """
                 INSERT INTO Photos (caption, data, album_id) 
@@ -190,12 +221,12 @@ def upload():
                     cleanTag = tagWord.lower()
                     
                     # Check if the tag already exists in the database
-                    cur.execute("SELECT tag_id FROM Tags WHERE word = %s", (cleanTag,))
+                    cur.execute("SELECT tag_id FROM Tags WHERE tag_word = %s", (cleanTag,))
                     tagRow = cur.fetchone()
                     
                     if not tagRow:
                         # If it's a brand new tag, insert it and grab the new ID
-                        cur.execute("INSERT INTO Tags (word) VALUES (%s) RETURNING tag_id", (cleanTag,))
+                        cur.execute("INSERT INTO Tags (tag_word) VALUES (%s) RETURNING tag_id", (cleanTag,))
                         tagId = cur.fetchone()[0]
                     else:
                         # If it exists, just use the existing ID
@@ -229,6 +260,15 @@ def upload():
 
     # Pass the albums to the template
     return render_template('upload.html', albums=userAlbums)
+
+
+
+
+
+
+
+
+
 
 @app.route('/photo/<int:photo_id>')
 def serve_photo(photo_id):
@@ -332,19 +372,19 @@ def like_photo(photo_id):
 
 @app.route('/comment/<int:photo_id>', methods=['POST'])
 def add_comment(photo_id):
-    # Security check to ensure the user is logged in
+    # Ensure the user is logged in
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
     commentText = request.form['comment_text']
     currentUserId = session['user_id']
 
-    # Get a database connection and cursor
+    # Establish connection
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
-        # Security check: Ensure the user is not commenting on their own photo
+        # Ensure the user is not commenting on their own photo
         cur.execute("SELECT album_id FROM Photos WHERE photo_id = %s", (photo_id,))
         albumId = cur.fetchone()[0]
         
@@ -352,7 +392,7 @@ def add_comment(photo_id):
         ownerId = cur.fetchone()[0]
 
         if currentUserId == ownerId:
-            # Silently reject self-comments
+            # Reject self-comments
             return redirect(url_for('view_photo', photo_id=photo_id))
 
         # Insert the comment into the database
@@ -372,6 +412,156 @@ def add_comment(photo_id):
 
     # Redirect back to the photo page to see the new comment
     return redirect(url_for('view_photo', photo_id=photo_id))
+
+@app.route('/search_comments', methods=['GET', 'POST'])
+def search_comments():
+    results = []
+    search_query = ""
+
+    if request.method == 'POST':
+        search_query = request.form.get('query', '').strip()
+        
+        if search_query:
+            conn = get_db_connection()
+            cur = conn.cursor()
+
+            # Aggregates counts and an array of unique photo IDs
+            cur.execute("""
+                SELECT 
+                    u.first_name, 
+                    u.last_name, 
+                    COUNT(c.comment_id) AS match_count,
+                    ARRAY_AGG(DISTINCT c.photo_id) AS photo_ids
+                FROM Comments c
+                JOIN Users u ON c.user_id = u.user_id
+                WHERE c.text = %s
+                GROUP BY u.user_id, u.first_name, u.last_name
+                ORDER BY match_count DESC;
+            """, (search_query,))
+            
+            results = cur.fetchall()
+            
+            cur.close()
+            conn.close()
+
+    return render_template('search_comments.html', results=results, search_query=search_query)
+
+@app.route('/tag/<string:tag_word>')
+def view_tag(tag_word):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Retrieve all photos that have this specific tag
+    cur.execute("""
+        SELECT p.photo_id, p.caption, a.name AS album_name, u.first_name, u.last_name
+        FROM Photos p
+        JOIN Albums a ON p.album_id = a.album_id
+        JOIN Users u ON a.user_id = u.user_id
+        JOIN Photo_Tags pt ON p.photo_id = pt.photo_id
+        JOIN Tags t ON pt.tag_id = t.tag_id
+        WHERE t.tag_word = %s
+        ORDER BY p.photo_id DESC;
+    """, (tag_word,))
+    
+    photos = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('tag_photos.html', photos=photos, tag_word=tag_word)
+
+@app.route('/delete_photo/<int:photo_id>', methods=['POST'])
+def delete_photo(photo_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Retrieve the owner of the photo
+    cur.execute("""
+        SELECT a.user_id 
+        FROM Photos p
+        JOIN Albums a ON p.album_id = a.album_id
+        WHERE p.photo_id = %s
+    """, (photo_id,))
+    result = cur.fetchone()
+
+    # If the photo exists and the logged-in user is the actual owner
+    if result and result[0] == session['user_id']:
+        cur.execute("DELETE FROM Photos WHERE photo_id = %s", (photo_id,))
+        conn.commit()
+
+    cur.close()
+    conn.close()
+
+    # Redirect the user back to the exact page they were just on
+    return redirect(request.referrer or url_for('index'))
+
+
+
+
+
+
+
+
+
+@app.route('/albums')
+def manage_albums():
+    # Security check: Must be logged in to view your albums
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Fetch only the albums owned by this specific user
+    cur.execute("""
+        SELECT album_id, name 
+        FROM Albums 
+        WHERE user_id = %s
+        ORDER BY album_id DESC
+    """, (session['user_id'],))
+    
+    user_albums = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('albums.html', albums=user_albums)
+
+@app.route('/delete_album/<int:album_id>', methods=['POST'])
+def delete_album(album_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Security Check: Verify album ownership
+    cur.execute("SELECT user_id FROM Albums WHERE album_id = %s", (album_id,))
+    result = cur.fetchone()
+
+    if result and result[0] == session['user_id']:
+        # Note: If your schema uses ON DELETE CASCADE, this will automatically delete the photos.
+        # If not, you must delete the related Photo_Tags, Comments, Likes, and Photos first.
+        cur.execute("DELETE FROM Albums WHERE album_id = %s", (album_id,))
+        conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return redirect(url_for('index'))
+
+
+
+
+
+
+
+
+
+
 
 
 @app.route('/friends', methods=['GET', 'POST'])
@@ -405,9 +595,8 @@ def friends():
         searchResults = cur.fetchall()
 
     # Fetch the user's current friends list to display on the page
-    # (Assuming your table is named Friends with columns user_id and friend_id)
     cur.execute("""
-        SELECT u.first_name, u.last_name, u.email 
+        SELECT u.user_id, u.first_name, u.last_name, u.email 
         FROM Users u
         JOIN Friends f ON u.user_id = f.friend_id
         WHERE f.user_id = %s
@@ -492,6 +681,39 @@ def friend_recommendations():
 
     return render_template('friend_recommendations.html', suggestions=suggestions)
 
+@app.route('/remove_friend/<int:friend_id>', methods=['POST'])
+def remove_friend(friend_id):
+    # Security check: Only logged-in users can manage friends
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Delete the friendship connection in both directions (just to be safe!)
+    cur.execute("""
+        DELETE FROM Friends 
+        WHERE (user_id = %s AND friend_id = %s) 
+           OR (user_id = %s AND friend_id = %s)
+    """, (user_id, friend_id, friend_id, user_id))
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    # Send the user right back to their friends list
+    return redirect(url_for('friends'))
+
+
+
+
+
+
+
+
+
+
 @app.route('/leaderboard')
 def leaderboard():
     conn = get_db_connection()
@@ -531,6 +753,18 @@ def leaderboard():
 
     return render_template('leaderboard.html', users=top_users)
 
+
+
+
+
+
+
+
+
+
+
+
+
 @app.route('/search_tags', methods=['GET', 'POST'])
 def search_tags():
     photos = []
@@ -567,6 +801,37 @@ def search_tags():
             conn.close()
 
     return render_template('search_tags.html', photos=photos, search_query=search_query)
+
+@app.route('/popular_tags')
+def popular_tags():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Calculate tag popularity by counting associated photo IDs
+    cur.execute("""
+        SELECT t.tag_word, COUNT(pt.photo_id) AS tag_count
+        FROM Tags t
+        JOIN Photo_Tags pt ON t.tag_id = pt.tag_id
+        GROUP BY t.tag_word
+        ORDER BY tag_count DESC;
+    """)
+    
+    tags = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('popular_tags.html', tags=tags)
+
+
+
+
+
+
+
+
+
+
 
 @app.route('/photo_recommendations')
 def photo_recommendations():
@@ -630,84 +895,63 @@ def photo_recommendations():
 
     return render_template('photo_recommendations.html', photos=recommended_photos)
 
-@app.route('/search_comments', methods=['GET', 'POST'])
-def search_comments():
-    results = []
-    search_query = ""
 
-    if request.method == 'POST':
-        search_query = request.form.get('query', '').strip()
-        
-        if search_query:
-            conn = get_db_connection()
-            cur = conn.cursor()
 
-            # Aggregates counts and an array of unique photo IDs
-            cur.execute("""
-                SELECT 
-                    u.first_name, 
-                    u.last_name, 
-                    COUNT(c.comment_id) AS match_count,
-                    ARRAY_AGG(DISTINCT c.photo_id) AS photo_ids
-                FROM Comments c
-                JOIN Users u ON c.user_id = u.user_id
-                WHERE c.text = %s
-                GROUP BY u.user_id, u.first_name, u.last_name
-                ORDER BY match_count DESC;
-            """, (search_query,))
-            
-            results = cur.fetchall()
-            
-            cur.close()
-            conn.close()
 
-    return render_template('search_comments.html', results=results, search_query=search_query)
 
-@app.route('/popular_tags')
-def popular_tags():
+
+
+
+
+
+
+@app.route('/api/search_users')
+def api_search_users():
+    # 1. We must verify who is searching so we know whose friends to exclude
+    if 'user_id' not in session:
+        return jsonify([])
+
+    current_user_id = session['user_id']
+    query = request.args.get('q', '').strip()
+    
+    if not query:
+        return jsonify([])
+
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Calculate tag popularity by counting associated photo IDs
+    # 2. The Upgraded Query with Parentheses and Exclusions
     cur.execute("""
-        SELECT t.tag_word, COUNT(pt.photo_id) AS tag_count
-        FROM Tags t
-        JOIN Photo_Tags pt ON t.tag_id = pt.tag_id
-        GROUP BY t.tag_word
-        ORDER BY tag_count DESC;
-    """)
+        SELECT user_id, first_name, last_name, email
+        FROM Users
+        WHERE (email ILIKE %s OR first_name ILIKE %s OR last_name ILIKE %s)
+          AND user_id != %s
+          AND user_id NOT IN (
+              SELECT friend_id FROM Friends WHERE user_id = %s
+          )
+        LIMIT 5;
+    """, (f'%{query}%', f'%{query}%', f'%{query}%', current_user_id, current_user_id))
     
-    tags = cur.fetchall()
-    
+    results = cur.fetchall()
     cur.close()
     conn.close()
 
-    return render_template('popular_tags.html', tags=tags)
+    suggestions = []
+    for row in results:
+        suggestions.append({
+            'user_id': row[0],
+            'first_name': row[1],
+            'last_name': row[2],
+            'email': row[3]
+        })
+
+    return jsonify(suggestions)
 
 
-@app.route('/tag/<string:tag_word>')
-def view_tag(tag_word):
-    conn = get_db_connection()
-    cur = conn.cursor()
 
-    # Retrieve all photos that have this specific tag
-    cur.execute("""
-        SELECT p.photo_id, p.caption, a.name AS album_name, u.first_name, u.last_name
-        FROM Photos p
-        JOIN Albums a ON p.album_id = a.album_id
-        JOIN Users u ON a.user_id = u.user_id
-        JOIN Photo_Tags pt ON p.photo_id = pt.photo_id
-        JOIN Tags t ON pt.tag_id = t.tag_id
-        WHERE t.tag_word = %s
-        ORDER BY p.photo_id DESC;
-    """, (tag_word,))
-    
-    photos = cur.fetchall()
-    
-    cur.close()
-    conn.close()
 
-    return render_template('tag_photos.html', photos=photos, tag_word=tag_word)
+
+
 
 @app.route('/logout')
 def logout():

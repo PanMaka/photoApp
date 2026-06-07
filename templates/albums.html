@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>k29photo - Manage Albums</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div style="margin-bottom: 20px;">
+        <a href="/">← Back to Feed</a>
+    </div>
+
+    <h2>Manage Your Albums</h2>
+    <p><i>Note: Deleting an album will also permanently delete all photos contained within it.</i></p>
+
+    <div style="max-width: 600px; margin-top: 20px;">
+        {% for album in albums %}
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; background-color: #fff;">
+
+            <div>
+                <h3 style="margin: 0;">{{ album[1] }}</h3>
+            </div>
+
+            <form action="/delete_album/{{ album[0] }}" method="POST" style="margin: 0;"
+                onsubmit="return confirm('WARNING: Are you absolutely sure? This cannot be undone.');">
+                <button type="submit"
+                    style="background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    Delete Album
+                </button>
+            </form>
+
+        </div>
+        {% else %}
+        <p style="color: #666;">You have not created any albums yet.</p>
+        {% endfor %}
+    </div>
+
+</body>
+
+</html>

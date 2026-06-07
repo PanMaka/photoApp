@@ -36,7 +36,8 @@ CREATE TABLE Photos (
 
 -- Tags Table (One-to-Many Relationship)
 CREATE TABLE Tags (
-    tag_word VARCHAR(100) PRIMARY KEY,
+    tag_id SERIAL PRIMARY KEY,
+    tag_word VARCHAR(100) UNIQUE NOT NULL,
     CHECK (tag_word ~ '^[a-z]+$')  -- Tags must be single words (no spaces) and strictly lowercase
 );
 
@@ -44,8 +45,8 @@ CREATE TABLE Tags (
 -- Links photos to tags, allowing multiple photos per tag and multiple tags per photo
 CREATE TABLE Photo_Tags (
     photo_id INT REFERENCES Photos(photo_id) ON DELETE CASCADE,
-    tag_word VARCHAR(100) REFERENCES Tags(tag_word) ON DELETE CASCADE,
-    PRIMARY KEY (photo_id, tag_word)
+    tag_id INT REFERENCES Tags(tag_id) ON DELETE CASCADE,
+    PRIMARY KEY (photo_id, tag_id)
 );
 
 -- Comments Table (One-to-Many Relationship)

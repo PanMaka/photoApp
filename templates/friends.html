@@ -20,10 +20,17 @@
     <h2>Friends Dashboard</h2>
 
     <h3>Find New Friends</h3>
-    <form action="/friends" method="POST">
-        <input type="text" name="search_email" placeholder="Search by email..." required>
-        <button type="submit">Search</button>
-    </form>
+    <div style="position: relative; width: 300px; margin-bottom: 30px;">
+        <form action="/friends" method="POST" id="search-form">
+            <input type="text" name="search_email" id="search-input" placeholder="Search by name or email..." required
+                autocomplete="off" style="width: 100%; padding: 8px; box-sizing: border-box;">
+            <button type="submit" style="margin-top: 5px; width: 100%;">Search</button>
+        </form>
+    
+        <div id="autocomplete-results"
+            style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-top: none; z-index: 1000; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 0 0 4px 4px; display: none;">
+        </div>
+    </div>
 
     <p><a href="/friend_recommendations">View Friend Suggestions</a></p>
 
@@ -46,13 +53,86 @@
     <hr>
 
     <h3>Your Friends</h3>
-    <ul>
+    <div class="friends-list" style="margin-top: 15px;">
         {% for friend in friends %}
-        <li><b>{{ friend[0] }} {{ friend[1] }}</b> ({{ friend[2] }})</li>
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; background-color: #fff;">
+
+            <div>
+                <b>{{ friend[1] }} {{ friend[2] }}</b>
+
+                <span style="color: #666; font-size: 14px; margin-left: 10px;">({{ friend[3] }})</span>
+            </div>
+
+            <form action="/remove_friend/{{ friend[0] }}" method="POST" style="margin: 0;"
+                onsubmit="return confirm('Are you sure you want to remove this person from your friends list?');">
+                <button type="submit"
+                    style="background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                    Remove Friend
+                </button>
+            </form>
+
+        </div>
         {% else %}
         <p>You haven't added any friends yet.</p>
         {% endfor %}
-    </ul>
+    </div>
+
+
+<script>
+    const searchInput = document.getElementById('search-input');
+    const resultsContainer = document.getElementById('autocomplete-results');
+
+    searchInput.addEventListener('input', async function () {
+        const query = this.value;
+
+        if (query.length === 0) {
+            resultsContainer.style.display = 'none';
+            return;
+        }
+
+        try {
+            // This calls the Python route we made in Step 1
+            const response = await fetch(`/api/search_users?q=${encodeURIComponent(query)}`);
+            const users = await response.json();
+
+            resultsContainer.innerHTML = '';
+
+            if (users.length > 0) {
+                users.forEach(user => {
+                    const div = document.createElement('div');
+                    div.style.padding = '10px';
+                    div.style.cursor = 'pointer';
+                    div.style.borderBottom = '1px solid #eee';
+
+                    div.onmouseover = function () { this.style.backgroundColor = '#f8f9fa'; }
+                    div.onmouseout = function () { this.style.backgroundColor = 'white'; }
+
+                    div.innerHTML = `<b>${user.first_name} ${user.last_name}</b> <br><small style="color: #666;">${user.email}</small>`;
+
+                    div.addEventListener('click', () => {
+                        searchInput.value = user.email;
+                        resultsContainer.style.display = 'none';
+                        document.getElementById('search-form').submit();
+                    });
+
+                    resultsContainer.appendChild(div);
+                });
+                resultsContainer.style.display = 'block';
+            } else {
+                resultsContainer.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error fetching search results:', error);
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (e.target !== searchInput && e.target !== resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+    });
+</script>
 
 </body>
 
